@@ -2,15 +2,39 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Legacy User Testing</title>
 
 <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/gsap@3/dist/gsap.min.js"></script>
 
 <style>
-body { font-family: sans-serif; padding: 20px; }
-button { margin-right: 8px; padding: 8px 14px; cursor: pointer; }
-.mermaid svg { border: 1px solid #ddd; background: #fafafa; }
+  body {
+    font-family: sans-serif;
+    padding: 20px;
+    box-sizing: border-box;
+  }
+
+  button {
+    margin-right: 8px;
+    padding: 8px 14px;
+    cursor: pointer;
+  }
+
+  /* FIX 6: Responsive container CSS */
+  #diagram {
+    width: 100%;
+    max-width: 1200px;
+    overflow-x: auto; /* fallback scroll for very small screens */
+  }
+
+  #diagram svg {
+    display: block;
+    width: 100%;
+    height: auto;
+    border: 1px solid #ddd;
+    background: #fafafa;
+  }
 </style>
 </head>
 <body>
@@ -65,50 +89,52 @@ let timeline;
 let currentStep = 0;
 let linkLine = null;
 
-// Role mapping (participantName => role)
-const roleMap = [
-  { pattern: /^SIS.*$/, role: "external" },
-  { pattern: /^(AIC|AD|SETUP.*|ASSERT.*|CLEANUP.*)$/, role: "core" },
-  { pattern: /^TEST.*$/, role: "testing"}
-];
+// ─── Role mapping ───
 
-// Map participant roles from Mermaid labels
+// FIX 4: getNoteRole uses .test() without full-string anchors so it matches
+//         partial note content, not just exact participant names.
+function getNoteRole(textEl) {
+  const text = textEl.textContent.trim();
+  if (/SIS/.test(text)) return "external";
+  if (/TEST/.test(text)) return "testing";
+  if (/AIC|AD|SETUP|ASSERT|CLEANUP/i.test(text)) return "core";
+  return "default";
+}
+
+// getRole is used for participant boxes only — keeps exact-match anchors
+// because participant label text is short and controlled.
 function getRole(text) {
   const name = text.trim();
-    for (const entry of roleMap) {
-    if (entry.pattern.test(name)) return entry.role;
-  }
+  if (/^SIS$/.test(name)) return "external";
+  if (/^(AIC|AD)$/.test(name)) return "core";
   return "default";
 }
 
-// Determine role for a note based on covered participants
-function getNoteRole(noteEl) {
-  const text = noteEl.textContent;
-  for (const entry of roleMap) {
-    if (entry.pattern.test(text)) return entry.role;
-  }
-  return "default";
-}
+// ─── Styling ───
 
-// Style participants
+// Scoped to text nodes whose parent group contains a rect
+// message labels and autonumber text are skipped
 function styleParticipants(svg) {
   svg.querySelectorAll("text").forEach(t => {
-    const role = getRole(t.textContent);
-    console.log("Role for " + t.textContent + ":" + role);
     const group = t.closest("g");
     const rect = group?.querySelector("rect");
-    if (!rect) return;
+    if (!rect) return; // skip non-participant text nodes
 
-    if (role === "external") { rect.style.fill="#f5f5f5"; rect.style.stroke="#ccc"; t.style.fill="#888"; console.log("Applying external styling");}
-    if (role === "core") { rect.style.fill="#e3f2fd"; rect.style.stroke="#1e88e5"; }
-    if (role === "testing") { rect.style.fill="#e8f5e9"; rect.style.stroke="#43a047"; }
+    const role = getRole(t.textContent);
+    if (role === "external") {
+      rect.style.fill = "#f5f5f5"; rect.style.stroke = "#ccc"; t.style.fill = "#888";
+    }
+    if (role === "core") {
+      rect.style.fill = "#e3f2fd"; rect.style.stroke = "#1e88e5";
+    }
+    if (role === "testing") {
+      rect.style.fill = "#e8f5e9"; rect.style.stroke = "#43a047";
+    }
   });
 }
 
-// Style notes based on role
 function styleNotes(svg) {
   svg.querySelectorAll("rect.note").forEach(rect => {
-    // text is typically the next sibling element
     const text = rect.nextElementSibling?.tagName === "text"
       ? rect.nextElementSibling
       : rect.closest("g")?.querySelector("text");
@@ -129,43 +155,76 @@ function styleNotes(svg) {
   });
 }
 
-// Persistent AIC ↔ AD link
+// ─── Responsive SVG ───
+
+// Strips hardcoded dimensions and sets viewBox
+// SVG scales fluidly inside its CSS container
+function makeResponsive(svg) {
+  const w = svg.getAttribute("width");
+  const h = svg.getAttribute("height");
+
+  if (!svg.getAttribute("viewBox") && w && h) {
+    svg.setAttribute("viewBox", `0 0 ${w} ${h}`);
+  }
+
+  svg.removeAttribute("width");
+  svg.removeAttribute("height");
+  svg.setAttribute("preserveAspectRatio", "xMidYMid meet");
+  svg.style.width = "100%";
+  svg.style.height = "auto";
+}
+
+// ─── Persistent AIC ↔ AD link ───
+
 function createPersistentLink(svg) {
   const texts = svg.querySelectorAll("text");
-  let aicX, adX;
+  let aicX, adX, aicEl, adEl;
+
   texts.forEach(t => {
-    if (t.textContent.includes("AIC")) aicX = t.getBBox().x + t.getBBox().width/2;
-    if (t.textContent.includes("AD")) adX = t.getBBox().x + t.getBBox().width/2;
+    const label = t.textContent.trim();
+    if (label === "AIC") { aicX = t.getBBox().x + t.getBBox().width / 2; aicEl = t; }
+    if (label === "AD")  { adX  = t.getBBox().x + t.getBBox().width / 2; adEl  = t; }
   });
-  const y = 160;
-  linkLine = document.createElementNS("http://www.w3.org/2000/svg","line");
-  linkLine.setAttribute("x1", aicX); linkLine.setAttribute("x2", adX);
-  linkLine.setAttribute("y1", y); linkLine.setAttribute("y2", y);
-  linkLine.setAttribute("stroke", "#ff9800"); linkLine.setAttribute("stroke-width",3);
+
+  if (!aicEl || !adEl) return; // guard against failed lookups
+
+  const aicBox = aicEl.closest("g")?.querySelector("rect")?.getBBox();
+  const adBox  = adEl.closest("g")?.querySelector("rect")?.getBBox();
+  const y = aicBox && adBox
+    ? Math.max(aicBox.y + aicBox.height, adBox.y + adBox.height) + 8
+    : aicEl.getBBox().y + aicEl.getBBox().height + 8;
+
+  linkLine = document.createElementNS("http://www.w3.org/2000/svg", "line");
+  linkLine.setAttribute("x1", aicX);
+  linkLine.setAttribute("x2", adX);
+  linkLine.setAttribute("y1", y);
+  linkLine.setAttribute("y2", y);
+  linkLine.setAttribute("stroke", "#ff9800");
+  linkLine.setAttribute("stroke-width", 3);
   linkLine.style.opacity = 0;
   svg.appendChild(linkLine);
 }
 
-// Collect messages and notes for step animation
+// ─── Step collection ───
+
 function collectSteps(svg) {
   const messages = svg.querySelectorAll(".message, .messageLine0, .messageLine1");
   const notes = svg.querySelectorAll("rect.note");
 
   const preShowPatterns = [
-    //SIS not a participant in these test cases/,
     /^SIS.*$/,
-    /^PRE.*$/,/^Legacy.*$/,/Student_To_AD/
-    // Add more patterns here if needed
+    /^PRE.*$/,
+    /^Legacy.*$/,
+    /Student_To_AD/
   ];
 
-  // Build the full combined list sorted by Y position
   const allElements = [...notes, ...messages]
     .sort((a, b) => a.getBBox().y - b.getBBox().y);
 
   steps = [];
 
   allElements.forEach(el => {
-    const container = el.closest("g") ?? el; // use the group as the animation target
+    const container = el.closest("g") ?? el;
     const text = el.nextElementSibling?.tagName === "text"
       ? el.nextElementSibling
       : el.closest("g")?.querySelector("text");
@@ -174,18 +233,18 @@ function collectSteps(svg) {
     const isPreShow = preShowPatterns.some(pattern => pattern.test(content));
 
     if (isPreShow) {
-      gsap.set(container, { opacity: 1, y: 0 }); // immediately visible
+      gsap.set(container, { opacity: 1, y: 0 });
     } else {
-      gsap.set(container, { opacity: 0, y: -10 }); // hidden until animated
-      steps.push(container); // animate the group, not the rect
+      gsap.set(container, { opacity: 0, y: -10 });
+      steps.push(container);
     }
   });
 }
 
-// Highlight BL during activation
+// ─── BL highlight ───
+
 function highlightBL(svg, active, time) {
-  const texts = svg.querySelectorAll("text");
-  texts.forEach(t => {
+  svg.querySelectorAll("text").forEach(t => {
     if (t.textContent.includes("Business Logic")) {
       const rect = t.closest("g")?.querySelector("rect");
       if (!rect) return;
@@ -194,44 +253,74 @@ function highlightBL(svg, active, time) {
   });
 }
 
-// Build timeline for animation
-function buildTimeline(svg) {
-  timeline = gsap.timeline({ paused:true });
-  steps.forEach((el,i) => {
-    const text = el.textContent || "";
-    timeline.to(el, { opacity: 1, y: 0, duration: 0.4 }, i*0.6);
+// ─── Timeline ───
 
-    //if (text.includes("reconById")) highlightBL(svg,true,i*0.6);
-    if (text.includes("Link established")) timeline.to(linkLine, {opacity:1,duration:0.5}, i*0.6);
-    if (text.includes("Remove link")) timeline.to(linkLine, {opacity:0,duration:0.5}, i*0.6);
-    if (text.includes("deactivate BL")) highlightBL(svg,false,i*0.6);
+function buildTimeline(svg) {
+  timeline = gsap.timeline({ paused: true });
+  steps.forEach((el, i) => {
+    const text = el.textContent || "";
+    timeline.to(el, { opacity: 1, y: 0, duration: 0.4 }, i * 0.6);
+
+    if (text.includes("Link established")) timeline.to(linkLine, { opacity: 1, duration: 0.5 }, i * 0.6);
+    if (text.includes("Remove link"))     timeline.to(linkLine, { opacity: 0, duration: 0.5 }, i * 0.6);
+    if (text.includes("deactivate BL"))   highlightBL(svg, false, i * 0.6);
   });
 }
 
-// Step mode
-function stepForward() { if(currentStep>=steps.length) return; gsap.to(steps[currentStep], {opacity:1,y:0,duration:0.4}); currentStep++; }
+// ─── Controls ───
 
-// Reset animation
-function reset() {
-  timeline.pause(0); currentStep=0;
-  steps.forEach(el => gsap.set(el, { opacity:0, y:-10 }));
-  if(linkLine) gsap.set(linkLine, {opacity:0});
+function stepForward() {
+  if (currentStep >= steps.length) return;
+  gsap.to(steps[currentStep], { opacity: 1, y: 0, duration: 0.4 });
+  currentStep++;
 }
 
-document.getElementById("play").onclick = () => timeline.play(0);
-document.getElementById("step").onclick = stepForward;
+function reset() {
+  timeline.pause(0);
+  currentStep = 0;
+  steps.forEach(el => gsap.set(el, { opacity: 0, y: -10 }));
+  if (linkLine) gsap.set(linkLine, { opacity: 0 });
+}
+
+document.getElementById("play").onclick  = () => timeline.play(0);
+document.getElementById("step").onclick  = stepForward;
 document.getElementById("reset").onclick = reset;
 
-// After Mermaid renders, style everything and build animation
-setTimeout(() => {
-  const svg = document.querySelector("#diagram svg");
+// ─── Init ───
+
+function init(svg) {
+  makeResponsive(svg);
   styleParticipants(svg);
   styleNotes(svg);
   createPersistentLink(svg);
   collectSteps(svg);
   buildTimeline(svg);
+}
+
+setTimeout(() => {
+  const svg = document.querySelector("#diagram svg");
+  if (svg) init(svg);
 }, 600);
 
+// Rebuild on resize so getBBox()-derived positions stay accurate
+let resizeTimer;
+window.addEventListener("resize", () => {
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(() => {
+    const svg = document.querySelector("#diagram svg");
+    if (!svg) return;
+
+    // Remove stale link line before recreating
+    if (linkLine?.parentNode) {
+      linkLine.parentNode.removeChild(linkLine);
+      linkLine = null;
+    }
+
+    steps = [];
+    currentStep = 0;
+    init(svg);
+  }, 250);
+});
 </script>
 
 </body>
