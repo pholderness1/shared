@@ -12,7 +12,7 @@ If you just need an access token for a single request, the `frodo info` command 
 
 Although Postman does have support for some [external libraries](https://learning.postman.com/docs/tests-and-scripts/write-scripts/postman-sandbox-api-reference/#using-external-libraries), none of them have any functionality for RSA — the algorithm Ping AIC uses to sign JWT's.  Instead, we'll take advantage of a different option available to us, the [package library](https://learning.postman.com/docs/tests-and-scripts/write-scripts/package-library/).
 
-The package library allows for us to create our own reusable pieces of code that can be called in pre-request and post-request scripts. To sign the JWT payload, I created my own library script that implements the RSA signing algorithm (specifically [RSASSA-PKCS1-v1_5](https://datatracker.ietf.org/doc/html/rfc3447#section-8.2)). The script is available in our Nexus repository as [postman-ping-aic-jwt.js](https://nexus.trivir.com/repository/postman-libs/postman-ping-aic-jwt.js).
+The package library allows for us to create our own reusable pieces of code that can be called in pre-request and post-request scripts. To sign the JWT payload, I created my own library script that implements the RSA signing algorithm (specifically [RSASSA-PKCS1-v1_5](https://datatracker.ietf.org/doc/html/rfc3447#section-8.2)).
 
 ::: details How do I add the script to my library?
 See Postman's docs on [adding a new package](https://learning.postman.com/docs/tests-and-scripts/write-scripts/package-library/#add-a-new-package) to add the script to your own library.
