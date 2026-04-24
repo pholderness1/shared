@@ -1,7 +1,7 @@
 ---
-title: Flows
+title: Flows Overview
 ---
 
-## Legacy Users Flow
+# Flows
 
-[Legacy Users Flow](/flows/legacyUsersFlow.html)
+Welcome to the flows section. Select a flow from the sidebar.
