@@ -7,7 +7,7 @@ hero:
   text: "Helpful info"
   actions:
     - theme: alt
-      text: Postman
+      text: Postman Collection
       link: postman-service-account-auth
 
 ---
