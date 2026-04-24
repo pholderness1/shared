@@ -5,7 +5,6 @@ layout: home
 hero:
   name: "Shared"
   text: "Helpful info"
-  tagline: My great project tagline
   actions:
     - theme: brand
       text: Markdown Examples
