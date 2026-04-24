@@ -8,18 +8,20 @@ export default defineConfig({
   themeConfig: {
     // https://vitepress.dev/reference/default-theme-config
     nav: [
-      { text: 'Home', link: '/' }
-    ],
+      { text: 'Home', link: '/' },
+      { text: 'Flows', link: '/flows/' }
+],
 
-    sidebar: [
-      {
-        text: 'flows',
-        items: [
-          //{ text: 'Overview', link: '/flows/' },
-          { text: 'Legacy Users Flow', link: '/flows/legacyUsersFlow' }
-        ]
-      }
-    ],
+sidebar: {
+  '/flows/': [
+    {
+      text: 'Flows',
+      items: [
+        { text: 'Legacy Users Flow', link: '/flows/legacyUsersFlow' }
+      ]
+    }
+  ]
+},
 
     socialLinks: [
       { icon: 'github', link: 'https://github.com/vuejs/vitepress' }
